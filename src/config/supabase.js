@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 
+// Centraliza a conexão com o Supabase para que os controladores usem a mesma instância.
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 

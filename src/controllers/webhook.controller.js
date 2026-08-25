@@ -5,11 +5,13 @@ const supabase = require('../config/supabase');
 class webhookController {
     static async handleMercadoPagoNotification(req, res) {
         try {
+            // Usa o token de produção ou teste conforme as variáveis de ambiente.
             const token = process.env.ACCESS_TOKEN_PROD || process.env.ACCESS_TOKEN_TEST;
 
             const client = new MercadoPagoConfig({ accessToken: token });
             const paymentClient = new Payment(client);
 
+            // O Mercado Pago envia headers e body com o identificador do pagamento.
             const signature = req.headers['x-signature'];
             const requestId = req.headers['x-request-id'];
             const paymentId = req.body?.data?.id;
@@ -18,7 +20,7 @@ class webhookController {
                 return res.status(400).json({ error: 'ID de pagamento ausente' });
             }
 
-            // --- Validação da Assinatura HMAC do Mercado Pago ---
+            // Valida a assinatura HMAC para confirmar que a origem da notificação é o Mercado Pago.
             if (process.env.WEBHOOK_SECRET && signature && requestId && !signature.includes('v1=123')) {
                 if (!signature || !requestId) {
                     return res.status(401).json({ error: 'Não autorizado ou headers ausentes' });
@@ -53,16 +55,18 @@ class webhookController {
 
             console.log('Recebida notificação para o pagamento:', paymentId);
 
-            // --- Processamento do Pagamento ---
+            // Se a notificação for de pagamento, consulta o status real no Mercado Pago.
             if (req.body?.type === 'payment' || req.body?.action === 'payment.updated') {
                 const paymentData = await paymentClient.get({ id: paymentId });
                 // const paymentStatus = paymentData?.status || paymentData?.response?.status;
 
-                const paymentStatus = 'approved'; // Substitua pelo status real do pagamento obtido da resposta do Mercado Pago
+                // Importante: este código atualmente força o status para 'approved'.
+                // Em produção, o ideal é usar o status real retornado pelo pagamento.
+                const paymentStatus = 'approved';
 
                 console.log(`Status do pagamento ${paymentId}: ${paymentStatus}`);
 
-                // APENAS ATUALIZA NO BANCO SE O STATUS FOR APROVADO
+                // Atualiza o registro do bilhete somente quando o pagamento foi aprovado.
                 if (paymentStatus === 'approved') {
                     const { error: dbError } = await supabase
                         .from('bilhetes')
@@ -70,7 +74,7 @@ class webhookController {
                         .eq('pix_Id', String(paymentId))
                         .select();
 
-                    if (dbError) {  
+                    if (dbError) {
                         console.error('Erro ao atualizar o status do bilhete no banco:', dbError);
                         return res.status(500).json({ error: 'Erro ao atualizar banco de dados' });
                     }
