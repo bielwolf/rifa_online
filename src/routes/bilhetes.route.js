@@ -1,12 +1,12 @@
 const express = require('express');
-
-const bilheteController = require('../controllers/bilhetes.controller.js');
+const bilheteController = require('../controllers/bilhetes.controller');
 
 const router = express.Router();
 
-// Lista os bilhetes vinculados a uma rifa específica.
-router
-    .get('/rifa/:rifa_id/bilhetes', bilheteController.getBilhetesByRifaId)
-    .post('/reservar', bilheteController.reserveBilhete);
+// Busca bilhetes de uma rifa
+router.get('/rifa/:rifa_id', bilheteController.getBilhetesByRifaId);
+
+// Reserva um bilhete
+router.post('/reservar', bilheteController.reserveBilhete);
 
 module.exports = router;
