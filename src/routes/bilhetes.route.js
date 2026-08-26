@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Lista os bilhetes vinculados a uma rifa específica.
 router
-    .get('/rifa/:rifa_id/bilhetes', bilheteController.getBilhetesByRifaId);
+    .get('/rifa/:rifa_id/bilhetes', bilheteController.getBilhetesByRifaId)
+    .post('/reservar', bilheteController.reserveBilhete);
 
 module.exports = router;

@@ -35,9 +35,9 @@ class paymentController {
             }});
 
             // Extrai o QR Code e os dados úteis retornados pela API do Mercado Pago.
+            const paymentId = paymentCreate?.id;
             const qrCode = paymentCreate.point_of_interaction.transaction_data.qr_code;
             const qrCodeBase64 = paymentCreate?.point_of_interaction.transaction_data.qr_code_base64;
-            const paymentId = paymentCreate?.id;
 
             // Retorna ao cliente o QR Code para pagamento e o identificador do pagamento.
             return res.status(201).json({
