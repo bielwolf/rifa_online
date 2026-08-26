@@ -1,4 +1,8 @@
 const supabase = require("../config/supabase");
+const {
+  reserveBilheteSchema,
+  formatValidationError,
+} = require("../validators/request.schemas");
 
 const { MercadoPagoConfig, Payment } = require("mercadopago");
 
@@ -9,7 +13,7 @@ const client = new MercadoPagoConfig({
 
 const paymentClient = new Payment(client);
 
-class bilhetesController {
+class BilhetesController {
   static async getBilhetesByRifaId(req, res) {
     // Obtém o ID da rifa informado na URL.
     const { rifa_id } = req.params;
@@ -38,45 +42,42 @@ class bilhetesController {
   }
 
   static async reserveBilhete(req, res) {
-    // 1. Extrair todos os campos obrigatórios
+    const validation = reserveBilheteSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        error: "Dados de reserva inválidos",
+        fields: formatValidationError(validation.error),
+      });
+    }
+
     const {
       rifa_id,
       numero,
       comprador_nome,
       comprador_telefone,
       comprador_email,
-    } = req.body;
-
-    if (!rifa_id || !numero || !comprador_nome || !comprador_telefone) {
-      return res.status(400).json({ error: "Campos obrigatórios ausentes!" });
-    }
+    } = validation.data;
 
     try {
-      // 2. Consulta o bilhete específico
+      // Consulta apenas o preço; o status é validado atomically no update abaixo.
       const { data: bilhete, error } = await supabase
         .from("bilhetes")
-        .select("id, rifa_id, numero, status, rifas(preco_bilhete)")
+        .select("id, rifa_id, numero, rifas(preco_bilhete)")
         .eq("rifa_id", rifa_id)
         .eq("numero", numero)
         .single();
 
-      // 3. Validações PRIMEIRO
       if (error || !bilhete) {
         return res
           .status(404)
           .json({ error: "Bilhete não encontrado nesta rifa" });
       }
 
-      if (bilhete.status !== "livre") {
-        return res
-          .status(409)
-          .json({ error: "Bilhete não está disponível para reserva" });
+      const valorDoBilhete = Number(bilhete.rifas.preco_bilhete);
+      if (!Number.isFinite(valorDoBilhete) || valorDoBilhete <= 0) {
+        throw new Error("Preço do bilhete inválido");
       }
 
-      // Agora é seguro ler o preço
-      const valorDoBilhete = Number(bilhete.rifas.preco_bilhete);
-
-      // 4. Cálculo dos 15 min + Mercado Pago
       const expiraEm = new Date(Date.now() + 15 * 60 * 1000);
 
       const emailPagador =
@@ -100,8 +101,8 @@ class bilhetesController {
       const qr_code = transactionData?.qr_code;
       const qr_code_base64 = transactionData?.qr_code_base64;
 
-      // 5. Update no Supabase
-      const { error: updateError } = await supabase
+      // A condição de status torna a reserva atômica e evita double booking.
+      const { data: reservedBilhete, error: updateError } = await supabase
         .from("bilhetes")
         .update({
           status: "reservado",
@@ -110,10 +111,19 @@ class bilhetesController {
           expira_em: expiraEm,
           pix_id: pix_id,
         })
-        .eq("id", bilhete.id);
+        .eq("rifa_id", rifa_id)
+        .eq("numero", numero)
+        .eq("status", "livre")
+        .select("id");
 
       if (updateError) {
         throw updateError;
+      }
+
+      if (!reservedBilhete || reservedBilhete.length === 0) {
+        return res.status(409).json({
+          error: "O bilhete já foi reservado por outro usuário",
+        });
       }
 
       // 6. Retorno de sucesso
@@ -131,4 +141,4 @@ class bilhetesController {
     }
   }
 }
-module.exports = bilhetesController;
+module.exports = BilhetesController;

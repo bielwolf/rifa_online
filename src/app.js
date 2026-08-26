@@ -1,7 +1,7 @@
 const express = require('express');
 
 // Importa os grupos de rotas da aplicação.
-const webHookRoutes = require('./routes/webhook.route.js');
+const webhookRoutes = require('./routes/webhook.route.js');
 const paymentRoutes = require('./routes/payment.route.js');
 const bilheteRoutes = require('./routes/bilhetes.route.js');
 
@@ -18,8 +18,8 @@ app.get('/', (req, res) => {
 });
 
 // Monta as rotas por domínio funcional do sistema.
-app.use('/webhook', webHookRoutes);
-app.use('/payments', paymentRoutes);
-app.use('/bilhetes', bilheteRoutes);
+app.use('/api/webhook', webhookRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/bilhetes', bilheteRoutes);
 
 module.exports = app;

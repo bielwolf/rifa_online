@@ -2,7 +2,7 @@ const { MercadoPagoConfig, Payment } = require('mercadopago');
 const crypto = require('crypto');
 const supabase = require('../config/supabase');
 
-class webhookController {
+class WebhookController {
     static async handleMercadoPagoNotification(req, res) {
         try {
             const paymentId = req.query.id || req.query['data.id'] || req.body?.data?.id;
@@ -86,4 +86,4 @@ class webhookController {
     }
 }
 
-module.exports = webhookController;
+module.exports = WebhookController;

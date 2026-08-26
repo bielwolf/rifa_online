@@ -1,4 +1,8 @@
 const { Payment, MercadoPagoConfig } = require("mercadopago");
+const {
+  createPaymentSchema,
+  formatValidationError,
+} = require("../validators/request.schemas");
 
 // Configura o cliente do Mercado Pago com o token de produção.
 const client = new MercadoPagoConfig({
@@ -7,19 +11,20 @@ const client = new MercadoPagoConfig({
 
 const paymentClient = new Payment(client);
 
-class paymentController {
+class PaymentController {
   static async createPayment(req, res) {
+    const validation = createPaymentSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({
+        error: "Dados de pagamento inválidos",
+        fields: formatValidationError(validation.error),
+      });
+    }
+
     try {
       // Recebe os dados do pagamento enviados pelo cliente.
       const { totalAmount, userName, userEmail, rifaId, userId, numberTicket } =
-        req.body;
-
-      // Validação mínima dos campos essenciais para criar a cobrança.
-      if (!totalAmount || !userName || !userEmail) {
-        return res
-          .status(400)
-          .json({ error: "Campos obrigatórios ausentes ou inválidos" });
-      }
+        validation.data;
 
       // Cria uma cobrança Pix no Mercado Pago.
       const paymentCreate = await paymentClient.create({
@@ -60,4 +65,4 @@ class paymentController {
     }
   }
 }
-module.exports = paymentController;
+module.exports = PaymentController;

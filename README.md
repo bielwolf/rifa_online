@@ -67,7 +67,7 @@ SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_KEY=sua-chave-anonimo-ou-service-role
 ACCESS_TOKEN_PROD=seu_access_token_mercadopago
 ACCESS_TOKEN_TEST=seu_access_token_test
-NOTIFICATION_URL=https://seu-dominio.com/webhook/mercadopago
+NOTIFICATION_URL=https://seu-dominio.com/api/webhook/mercadopago
 WEBHOOK_SECRET=seu_secret_do_webhook
 ```
 
@@ -93,7 +93,7 @@ Resposta:
 }
 ```
 
-### POST /payments/api/pix
+### POST /api/payments/pix
 
 Cria um pagamento Pix no Mercado Pago.
 
@@ -121,14 +121,14 @@ Resposta:
 }
 ```
 
-### GET /bilhetes/rifa/:rifa_id/bilhetes
+### GET /api/bilhetes/rifa/:rifa_id
 
 Consulta os bilhetes de uma rifa específica.
 
 Exemplo:
 
 ```bash
-GET /bilhetes/rifa/123/bilhetes
+GET /api/bilhetes/rifa/123
 ```
 
 Resposta esperada:
@@ -148,7 +148,25 @@ Resposta esperada:
 ]
 ```
 
-### POST /webhook/mercadopago
+### POST /api/bilhetes/reservar
+
+Reserva um bilhete livre e gera a cobrança Pix correspondente.
+
+Body esperado:
+
+```json
+{
+  "rifa_id": "123",
+  "numero": 10,
+  "comprador_nome": "João da Silva",
+  "comprador_telefone": "(11) 99999-9999",
+  "comprador_email": "joao@email.com"
+}
+```
+
+Se outro usuário reservar o bilhete primeiro, a API retorna `409 Conflict`.
+
+### POST /api/webhook/mercadopago
 
 Endpoint usado para receber notificações do Mercado Pago sobre alterações no pagamento.
 
@@ -156,11 +174,11 @@ A implementação atual valida a assinatura HMAC quando `WEBHOOK_SECRET` é info
 
 ## Fluxo principal de pagamento
 
-1. O cliente envia os dados do pagamento para `POST /payments/api/pix`.
+1. O cliente envia os dados do pagamento para `POST /api/payments/pix`.
 2. A API cria uma cobrança Pix no Mercado Pago.
 3. O Mercado Pago retorna QR Code, dados do pagamento e data de expiração.
 4. O frontend usa o QR Code para o cliente pagar.
-5. Mercado Pago envia uma notificação via webhook para `/webhook/mercadopago`.
+5. Mercado Pago envia uma notificação via webhook para `/api/webhook/mercadopago`.
 6. O webhook confirma o pagamento e atualiza o registro correspondente no Supabase.
 
 ## Integração com banco de dados
