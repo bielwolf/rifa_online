@@ -1,11 +1,10 @@
 const express = require('express');
-
-const paymentController = require('../controllers/payment.controller.js');
+const paymentController = require('../controllers/payment.controller');
 
 const router = express.Router();
 
-// Cria uma cobrança Pix no Mercado Pago para o cliente pagar.
+// Cria cobrança PIX manual (se usado separado da reserva)
 router
-    .post('/api/pix', paymentController.createPayment);
+    .post('/pix', paymentController.createPayment);
 
 module.exports = router;
