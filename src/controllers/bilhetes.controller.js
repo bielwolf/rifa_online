@@ -1,17 +1,9 @@
-const supabase = require("../config/supabase");
+const BilhetesService = require("../services/bilhete.service");
+const { reserveBilheteSchema, formatValidationError } = require("../validations/bilhete.validation"); // Ajuste o caminho do arquivo se necessário
 
-const { MercadoPagoConfig, Payment } = require("mercadopago");
-
-// Configura o cliente do Mercado Pago com o token de produção.
-const client = new MercadoPagoConfig({
-  accessToken: process.env.ACCESS_TOKEN_PROD,
-});
-
-const paymentClient = new Payment(client);
-
-class bilhetesController {
-  static async getBilhetesByRifaId(req, res) {
-    // Obtém o ID da rifa informado na URL.
+class BilhetesController {
+  // GET /rifas/:rifa_id/bilhetes
+  static async listarPorRifa(req, res) {
     const { rifa_id } = req.params;
 
     if (!rifa_id) {
@@ -27,93 +19,32 @@ class bilhetesController {
     }
   }
 
-  static async reserveBilhete(req, res) {
-    // 1. Extrair todos os campos obrigatórios
-    const {
-      rifa_id,
-      numero,
-      comprador_nome,
-      comprador_telefone,
-      comprador_email,
-    } = req.body;
-
-    if (!rifa_id || !numero || !comprador_nome || !comprador_telefone) {
-      return res.status(400).json({ error: "Campos obrigatórios ausentes!" });
-    }
-
+  // POST /bilhetes/reservar
+  static async reservarBilhete(req, res) {
     try {
-      // 2. Consulta o bilhete específico
-      const { data: bilhete, error } = await supabase
-        .from("bilhetes")
-        .select("id, rifa_id, numero, status, rifas(preco_bilhete)")
-        .eq("rifa_id", rifa_id)
-        .eq("numero", numero)
-        .single();
+      // 1. O Zod valida e higieniza os dados recebidos do req.body
+      const dadosValidados = reserveBilheteSchema.parse(req.body);
 
-      // 3. Validações PRIMEIRO
-      if (error || !bilhete) {
-        return res
-          .status(404)
-          .json({ error: "Bilhete não encontrado nesta rifa" });
-      }
+      // 2. Passamos os dados limpos e garantidos para o Service
+      const resultado = await BilhetesService.reservarBilhete(dadosValidados);
 
-      if (bilhete.status !== "livre") {
-        return res
-          .status(409)
-          .json({ error: "Bilhete não está disponível para reserva" });
-      }
-
-      // Agora é seguro ler o preço
-      const valorDoBilhete = Number(bilhete.rifas.preco_bilhete);
-
-      // 4. Cálculo dos 15 min + Mercado Pago
-      const expiraEm = new Date(Date.now() + 15 * 60 * 1000);
-
-      const emailPagador =
-        comprador_email ||
-        `cliente_${comprador_telefone.replace(/\D/g, "")}@seudominio.com`;
-
-      const mpResponse = await paymentClient.create({
-        body: {
-          transaction_amount: valorDoBilhete,
-          description: `Bilhete #${numero} - Rifa ${rifa_id}`,
-          payment_method_id: "pix",
-          payer: {
-            email: emailPagador,
-            first_name: comprador_nome,
-          },
-        },
-      });
-
-      const pix_id = String(mpResponse?.id);
-      const transactionData = mpResponse.point_of_interaction?.transaction_data;
-      const qr_code = transactionData?.qr_code;
-      const qr_code_base64 = transactionData?.qr_code_base64;
-
-      // 5. Update no Supabase
-      const { error: updateError } = await supabase
-        .from("bilhetes")
-        .update({
-          status: "reservado",
-          comprador_nome: comprador_nome,
-          comprador_telefone: comprador_telefone,
-          expira_em: expiraEm,
-          pix_id: pix_id,
-        })
-        .eq("id", bilhete.id);
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      // 6. Retorno de sucesso
-      return res.status(201).json({
-        status: "reservado",
-        qr_code: qr_code,
-        qr_code_base64: qr_code_base64,
-        expira_em: expiraEm,
-      });
+      return res.status(201).json(resultado);
     } catch (error) {
+      // 3. Captura erros de validação do Zod (retorna Status 400 Bad Request)
+      if (error.name === "ZodError" || error.issues) {
+        return res.status(400).json({
+          error: "Dados de entrada inválidos.",
+          detalhes: formatValidationError(error),
+        });
+      }
+
+      // 4. Captura erro de concorrência retornado pelo Service (Status 409 Conflict)
+      if (error.message === "Bilhete_Indisponivel") {
+        return res.status(409).json({
+          error: "Este bilhete já foi reservado por outro usuário.",
+        });
+      }
+
       console.error("Erro ao processar reserva:", error);
       return res
         .status(500)
@@ -121,6 +52,5 @@ class bilhetesController {
     }
   }
 }
-module.exports = bilhetesController;
 
 module.exports = BilhetesController;
