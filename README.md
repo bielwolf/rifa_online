@@ -1,210 +1,119 @@
 # Rifa Online API
 
-API backend para gestão de rifas, pagamentos via Mercado Pago e consulta de bilhetes armazenados no Supabase.
+API backend leve para gerenciamento de bilhetes de rifas e pagamentos via Mercado Pago (PIX).
 
-## Visão geral
+## Objetivo
 
-Este projeto expõe uma API REST em Node.js com Express para:
+Fornecer endpoints mínimos necessários ao fluxo de compra de bilhetes:
+- Listar bilhetes de uma rifa
+- Reservar um bilhete (trava atômica) e gerar cobrança PIX
+- Receber webhook do Mercado Pago para confirmar pagamento e marcar bilhete como `pago`
+- Rotina agendada para liberar bilhetes reservados que expiraram
 
-- gerar pagamentos Pix com Mercado Pago;
-- receber notificações de webhook do Mercado Pago;
-- consultar bilhetes por rifa;
-- atualizar o status dos bilhetes após confirmação de pagamento.
+O backend usa Supabase como datastore e o SDK do Mercado Pago para geração de PIX.
 
-A estrutura do projeto foi organizada em módulos por responsabilidades:
+## Arquitetura e organização de pastas
 
-- `src/app.js`: configuração principal da aplicação e montagem das rotas;
-- `src/routes`: definição das rotas públicas da API;
-- `src/controllers`: lógica de negócios dos endpoints;
-- `src/config/supabase.js`: cliente do Supabase;
-- `server.js`: inicialização do servidor.
+- `/src/controllers` — camada HTTP: valida requisições (Zod), mapeia erros e delega aos Services
+- `/src/services` — camada de regras de negócio e acesso a dados (Supabase, Mercado Pago)
+- `/src/routes` — definição de rotas Express
+- `/src/validators` — schemas Zod e helpers de formatação de erro
+- `/src/config` — clientes/integrações (ex.: Supabase client)
 
-## Stack tecnológica
+Estrutura principal (após limpeza):
 
-- Node.js
-- Express
-- Mercado Pago SDK
-- Supabase JS Client
-- dotenv
-- nodemon (desenvolvimento)
-
-## Estrutura do projeto
-
-```text
-rifa_online/
-├── src/
-│   ├── app.js
-│   ├── config/
-│   │   └── supabase.js
-│   ├── controllers/
-│   │   ├── bilhetes.controller.js
-│   │   ├── payment.controller.js
-│   │   └── webhook.controller.js
-│   └── routes/
-│       ├── bilhetes.route.js
-│       ├── payment.route.js
-│       └── webhook.route.js
-├── .env
-├── .gitignore
-├── package.json
-├── server.js
-└── README.md
+```
+src/
+├── app.js
+├── config/
+│   └── supabase.js
+├── controllers/
+│   ├── bilhetes.controller.js
+│   ├── expiration.controller.js
+│   ├── payment.controller.js
+│   └── webhook.controller.js
+├── routes/
+│   ├── bilhetes.route.js
+│   ├── payment.route.js
+│   └── webhook.route.js
+├── services/
+│   ├── bilhete.service.js
+│   ├── payment.service.js
+│   └── webhook.service.js
+└── validators/
+    └── request.schemas.js
 ```
 
-## Como executar localmente
+## Endpoints ativos
 
-1. Instale as dependências:
+- GET /api/bilhetes/rifa/:rifa_id
+- POST /api/bilhetes/reservar
+- POST /api/bilhetes/confirmar-pagamento
+- POST /api/payments/pix
+- POST /api/webhook/mercadopago
+
+Observações:
+- As validações de payload são feitas com Zod e retornam 400 com detalhes quando falham.
+- Conflitos de concorrência (bilhetes já reservados) retornam 409 Conflict.
+
+## Variáveis de ambiente necessárias
+
+- SUPABASE_URL — URL do projeto Supabase
+- SUPABASE_KEY — Chave anônima ou service role (dependendo das operações)
+- ACCESS_TOKEN_PROD — token do Mercado Pago (produção)
+- ACCESS_TOKEN_TEST — token do Mercado Pago (teste, opcional)
+- NOTIFICATION_URL — URL pública para webhooks (ex.: https://seu-dominio.com/api/webhook/mercadopago)
+- WEBHOOK_SECRET — chave usada para validar assinatura HMAC do webhook
+- PORT — porta onde o servidor roda (ex.: 3000)
+
+## Como rodar localmente
+
+1. Instale dependências:
 
 ```bash
 npm install
 ```
 
-2. Crie um arquivo `.env` com as variáveis necessárias:
+2. Configure `.env` com as variáveis listadas acima.
 
-```env
-PORT=3000
-SUPABASE_URL=https://seu-projeto.supabase.co
-SUPABASE_KEY=sua-chave-anonimo-ou-service-role
-ACCESS_TOKEN_PROD=seu_access_token_mercadopago
-ACCESS_TOKEN_TEST=seu_access_token_test
-NOTIFICATION_URL=https://seu-dominio.com/api/webhook/mercadopago
-WEBHOOK_SECRET=seu_secret_do_webhook
-```
-
-3. Inicie a aplicação:
+3. Inicie em modo de desenvolvimento:
 
 ```bash
 npm run dev
 ```
 
-O servidor estará disponível em `http://localhost:3000`.
+A API ficará disponível em `http://localhost:3000` (ou na PORT configurada).
 
-## Rotas da API
+## Especificações rápidas dos endpoints
 
-### GET /
+- POST /api/bilhetes/reservar
+  - Body: { rifa_id, numero, comprador_nome, comprador_telefone, comprador_email? }
+  - Retorna: { status: 'reservado', qr_code, qr_code_base64, expira_em }
+  - Erros: 400 validação; 409 bilhete já reservado; 500 erro interno
 
-Retorna uma mensagem de boas-vindas da API.
+- POST /api/bilhetes/confirmar-pagamento
+  - Body: { pix_id }
+  - Retorna: { status: 'pago', bilhete }
+  - Erros: 400 validação/pix_id ausente; 404 bilhete não encontrado; 500 erro interno
 
-Resposta:
+- POST /api/payments/pix
+  - Body: { totalAmount, userName, userEmail, rifaId, userId, numberTicket }
+  - Retorna: { payment_id, qr_code, qr_code_base64, expiration_date }
 
-```json
-{
-  "message": "Boas-vindas à API da Rifa Online!"
-}
-```
+- POST /api/webhook/mercadopago
+  - Valida assinatura HMAC quando WEBHOOK_SECRET configurado e confirma pagamentos aprovados; delega a BilhetesService.confirmarPagamento
 
-### POST /api/payments/pix
+## Comentários no código (convenções)
 
-Cria um pagamento Pix no Mercado Pago.
+- Todos os Services usam métodos `static async` e nunca acessam objetos HTTP (req, res).
+- Controllers fazem validação com Zod e formatam erros usando `formatValidationError` (em `/src/validators/request.schemas.js`).
+- Mensagens de erro lançadas pelos Services usam strings previsíveis para mapeamento HTTP: `Bilhete_Indisponivel`, `pix_id_obrigatorio`, `Bilhete_nao_encontrado`, `dados_pagamento_invalidos`, etc.
 
-Body esperado:
+## Testes e validação
 
-```json
-{
-  "totalAmount": 25.5,
-  "userName": "João",
-  "userEmail": "joao@email.com",
-  "rifaId": "abc123",
-  "userId": "user-456",
-  "numberTicket": "10"
-}
-```
+- Recomenda-se criar testes unitários com mocks para Supabase e Mercado Pago.
+- Antes de rodar em produção, verificar valores reais das variáveis de ambiente e testar webhooks em ambiente seguro.
 
-Resposta:
+## Contato / Observações
 
-```json
-{
-  "payment_id": 123456789,
-  "qr_code": "...",
-  "qr_code_base64": "...",
-  "expiration_date": "2026-08-25T18:00:00.000-03:00"
-}
-```
-
-### GET /api/bilhetes/rifa/:rifa_id
-
-Consulta os bilhetes de uma rifa específica.
-
-Exemplo:
-
-```bash
-GET /api/bilhetes/rifa/123
-```
-
-Resposta esperada:
-
-```json
-[
-  {
-    "id": 1,
-    "numero": 1,
-    "rifa_id": "123"
-  },
-  {
-    "id": 2,
-    "numero": 2,
-    "rifa_id": "123"
-  }
-]
-```
-
-### POST /api/bilhetes/reservar
-
-Reserva um bilhete livre e gera a cobrança Pix correspondente.
-
-Body esperado:
-
-```json
-{
-  "rifa_id": "123",
-  "numero": 10,
-  "comprador_nome": "João da Silva",
-  "comprador_telefone": "(11) 99999-9999",
-  "comprador_email": "joao@email.com"
-}
-```
-
-Se outro usuário reservar o bilhete primeiro, a API retorna `409 Conflict`.
-
-### POST /api/webhook/mercadopago
-
-Endpoint usado para receber notificações do Mercado Pago sobre alterações no pagamento.
-
-A implementação atual valida a assinatura HMAC quando `WEBHOOK_SECRET` é informado e então atualiza o registro de bilhetes no Supabase com o status `pago` caso o pagamento seja aprovado.
-
-## Fluxo principal de pagamento
-
-1. O cliente envia os dados do pagamento para `POST /api/payments/pix`.
-2. A API cria uma cobrança Pix no Mercado Pago.
-3. O Mercado Pago retorna QR Code, dados do pagamento e data de expiração.
-4. O frontend usa o QR Code para o cliente pagar.
-5. Mercado Pago envia uma notificação via webhook para `/api/webhook/mercadopago`.
-6. O webhook confirma o pagamento e atualiza o registro correspondente no Supabase.
-
-## Integração com banco de dados
-
-A conexão com o Supabase está centralizada em `src/config/supabase.js`:
-
-```js
-const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-```
-
-A aplicação usa a tabela `bilhetes` para:
-
-- listar bilhetes por rifa;
-- atualizar o status de bilhetes para `pago` após o webhook.
-
-## Observações importantes
-
-- O projeto ainda está em desenvolvimento e não possui suíte automatizada de testes (`npm test` retorna erro de script não configurado).
-- O webhook atualmente usa um valor fixo de `paymentStatus = 'approved'` na implementação, o que indica que a lógica de confirmação deve ser ajustada para refletir o status real devolvido pelo Mercado Pago.
-- O projeto depende de variáveis de ambiente corretamente configuradas para funcionar em ambiente real.
-
-## Próximos passos sugeridos
-
-- adicionar autenticação e autorização;
-- implementar testes automatizados;
-- validar status real do pagamento no webhook;
-- tratar melhor erros e logs;
-- documentar modelos e regras de negócio da rifa.
+Este repositório foi limpo para conter apenas o escopo necessário ao fluxo de compra de bilhetes e integrações com Mercado Pago. Para reintroduzir recursos fora deste escopo (ex.: gerenciamento de rifas CRUD, autenticação de usuários) crie branches separados e adicione testes.

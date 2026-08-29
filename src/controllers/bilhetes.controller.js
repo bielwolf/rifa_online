@@ -1,6 +1,11 @@
 const BilhetesService = require('../services/bilhete.service');
 const { reserveBilheteSchema, confirmPaymentSchema, formatValidationError } = require('../validators/request.schemas');
 
+/**
+ * BilhetesController
+ * - Lidança HTTP para operações de bilhetes (listagem, reserva, confirmação)
+ * - Valida entrada com Zod e mapeia erros lançados pelos Services para respostas HTTP.
+ */
 class BilhetesController {
   // GET /rifas/:rifa_id/bilhetes
   static async listarPorRifa(req, res) {
