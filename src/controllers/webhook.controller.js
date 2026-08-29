@@ -1,6 +1,14 @@
 const WebhookService = require('../services/webhook.service');
 
+/**
+ * WebhookController
+ * - Endpoint para receber notificações do Mercado Pago e delegar validação/propagação ao WebhookService.
+ */
 class WebhookController {
+  /**
+   * POST /webhook/mercadopago
+   * - Valida cabeçalhos e assinatura, delega para o service.
+   */
   static async handleMercadoPagoNotification(req, res) {
     try {
       const paymentId = req.query.id || req.query['data.id'] || req.body?.data?.id;

@@ -1,7 +1,14 @@
 const BilhetesService = require('../services/bilhete.service');
 const cron = require('node-cron');
 
+/**
+ * ExpirationController
+ * - Inicializa rotina agendada (cron) para liberar bilhetes expirados chamando BilhetesService.liberarExpirados().
+ */
 class ExpirationController {
+  /**
+   * Inicializa cron que roda a cada minuto.
+   */
   static initExpirationCron() {
     // Roda a cada 1 minuto (* * * * *)
     cron.schedule('* * * * *', async () => {

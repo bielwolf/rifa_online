@@ -55,6 +55,10 @@ const confirmPaymentSchema = z.object({
   pix_id: idSchema,
 });
 
+/**
+ * formatValidationError
+ * - Converte ZodError em array de { field, message } para respostas HTTP legíveis.
+ */
 function formatValidationError(error) {
   return error.issues.map((issue) => ({
     field: issue.path.join('.') || 'body',

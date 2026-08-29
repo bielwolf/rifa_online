@@ -1,7 +1,16 @@
 const PaymentService = require('../services/payment.service');
 const { createPaymentSchema, formatValidationError } = require('../validators/request.schemas');
 
+/**
+ * PaymentController
+ * - Endpoints relacionados à geração de cobranças (PIX) via Mercado Pago.
+ * - Recebe payloads validados e delega ao PaymentService.
+ */
 class PaymentController {
+  /**
+   * POST /payments/pix
+   * Body: { totalAmount, userName, userEmail, rifaId, userId, numberTicket }
+   */
   static async createPayment(req, res) {
     const validation = createPaymentSchema.safeParse(req.body);
     if (!validation.success) {
