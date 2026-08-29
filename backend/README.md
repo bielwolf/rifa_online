@@ -86,6 +86,9 @@ A API ficará disponível em `http://localhost:3000` (ou na PORT configurada).
 
 ## Especificações rápidas dos endpoints
 
+- GET /api/bilhetes?rifa_id=:rifa_id
+  - Retorna a lista de números e status (`livre`, `reservado`, `pago`)
+
 - POST /api/bilhetes/reservar
   - Body: { rifa_id, numero, comprador_nome, comprador_telefone, comprador_email? }
   - Retorna: { status: 'reservado', qr_code, qr_code_base64, expira_em }
@@ -102,6 +105,36 @@ A API ficará disponível em `http://localhost:3000` (ou na PORT configurada).
 
 - POST /api/webhook/mercadopago
   - Valida assinatura HMAC quando WEBHOOK_SECRET configurado e confirma pagamentos aprovados; delega a BilhetesService.confirmarPagamento
+
+## Teste ponta a ponta
+
+Com o backend em `http://localhost:3000` e o frontend em `http://localhost:5173`, configure
+`VITE_API_URL=http://localhost:3000` no frontend. Para usar ngrok, substitua esse valor pela
+URL pública e inclua a origem do frontend em `FRONTEND_URLS` (separada por vírgulas).
+
+No PowerShell, execute:
+
+```powershell
+$body = @{
+  rifa_id = "8178b6d5-ea11-45f7-b127-f715e35c8767"
+  numero = 1
+  comprador_nome = "Teste Integração"
+  comprador_telefone = "11999999999"
+} | ConvertTo-Json
+
+$reserva = Invoke-RestMethod `
+  -Uri "http://localhost:3000/api/bilhetes/reservar" `
+  -Method Post -ContentType "application/json" -Body $body
+
+$reserva | Format-List status, qr_code, qr_code_base64, expira_em
+```
+
+A resposta `201` deve preencher o `PixSheet` do frontend com `qr_code_base64` e `qr_code`.
+O GET usado pela tela pode ser verificado com:
+
+```powershell
+Invoke-RestMethod "http://localhost:3000/api/bilhetes?rifa_id=8178b6d5-ea11-45f7-b127-f715e35c8767"
+```
 
 ## Comentários no código (convenções)
 

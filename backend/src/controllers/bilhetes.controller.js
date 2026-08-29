@@ -7,6 +7,23 @@ const { reserveBilheteSchema, confirmPaymentSchema, formatValidationError } = re
  * - Valida entrada com Zod e mapeia erros lançados pelos Services para respostas HTTP.
  */
 class BilhetesController {
+  // GET /bilhetes?rifa_id=:rifa_id
+  static async listarPorRifaQuery(req, res) {
+    const { rifa_id } = req.query;
+
+    if (typeof rifa_id !== 'string' || !rifa_id.trim()) {
+      return res.status(400).json({ error: 'O parâmetro rifa_id é obrigatório.' });
+    }
+
+    try {
+      const resultado = await BilhetesService.listarPorRifa(rifa_id);
+      return res.status(200).json(resultado);
+    } catch (error) {
+      console.error('Erro ao listar bilhetes:', error);
+      return res.status(500).json({ error: 'Erro ao buscar bilhetes.' });
+    }
+  }
+
   // GET /rifas/:rifa_id/bilhetes
   static async listarPorRifa(req, res) {
     const { rifa_id } = req.params;
