@@ -76,6 +76,13 @@ class BilhetesController {
         });
       }
 
+      if (error.name === 'PixGatewayError') {
+        return res.status(error.statusCode).json({
+          error: 'Erro na integracao com gateway PIX',
+          detalhes: error.details,
+        });
+      }
+
       console.error('Erro ao processar reserva:', error);
       return res.status(500).json({ error: 'Erro interno ao processar a reserva.' });
     }
