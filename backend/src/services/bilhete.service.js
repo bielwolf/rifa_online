@@ -2,10 +2,20 @@ const supabase = require("../config/supabase");
 const { MercadoPagoConfig, Payment } = require("mercadopago");
 
 // Configura o cliente do Mercado Pago no Service, onde ele é utilizado
+const accessToken = process.env.ACCESS_TOKEN_PROD || process.env.ACCESS_TOKEN_TEST;
 const client = new MercadoPagoConfig({
-  accessToken: process.env.ACCESS_TOKEN_PROD,
+  accessToken,
 });
 const paymentClient = new Payment(client);
+
+class PixGatewayError extends Error {
+  constructor(statusCode, details) {
+    super('Erro na integracao com gateway PIX');
+    this.name = 'PixGatewayError';
+    this.statusCode = statusCode;
+    this.details = details;
+  }
+}
 
 /**
  * BilhetesService
@@ -58,6 +68,7 @@ class BilhetesService {
         status: 'reservado',
         comprador_nome,
         comprador_telefone,
+        comprador_email: comprador_email,
         expira_em: expiraEm,
       })
       .eq('rifa_id', rifa_id)
@@ -79,17 +90,35 @@ class BilhetesService {
     const emailPagador =
       comprador_email || `cliente_${comprador_telefone.replace(/\D/g, '')}@seudominio.com`;
 
-    const mpResponse = await paymentClient.create({
-      body: {
-        transaction_amount: valorDoBilhete,
-        description: `Bilhete #${numero} - Rifa ${rifa_id}`,
-        payment_method_id: 'pix',
-        payer: {
-          email: emailPagador,
-          first_name: comprador_nome,
+    let mpResponse;
+    try {
+      if (!accessToken) {
+        throw new PixGatewayError(502, 'Token do gateway PIX não configurado.');
+      }
+
+      mpResponse = await paymentClient.create({
+        body: {
+          transaction_amount: valorDoBilhete,
+          description: `Bilhete #${numero} - Rifa ${rifa_id}`,
+          payment_method_id: 'pix',
+          payer: {
+            email: emailPagador,
+            first_name: comprador_nome,
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      if (error instanceof PixGatewayError) {
+        console.error('Erro no gateway PIX:', error.details);
+        throw error;
+      }
+
+      const details = error.response?.data || error.message;
+      console.error('Erro no gateway PIX:', details);
+      const gatewayStatus = error.response?.status || error.status;
+      const statusCode = [400, 422].includes(gatewayStatus) ? 400 : 502;
+      throw new PixGatewayError(statusCode, details);
+    }
 
     const pix_id = String(mpResponse?.id);
     const transactionData = mpResponse.point_of_interaction?.transaction_data;
