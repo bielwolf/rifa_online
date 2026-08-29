@@ -17,6 +17,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "mercadopago": "^3.4.0",
+    "node-cron": "^4.6.0",
     "zod": "^4.5.2"
   },
   "devDependencies": {
