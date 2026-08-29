@@ -8,10 +8,37 @@ const bilheteRoutes = require('./routes/bilhetes.route.js');
 
 const app = express();
 
-const allowedOrigins = (process.env.FRONTEND_URLS || 'http://localhost:5173')
-    .split(',')
+const defaultAllowedOrigins = [
+    'https://rifa-online-frontend-m5nx.onrender.com',
+    'http://localhost:5173',
+    'http://localhost:3000',
+];
+
+const configuredOrigins = [
+    process.env.FRONTEND_URLS,
+    process.env.FRONTEND_URL,
+    process.env.CORS_ORIGIN,
+]
+    .filter(Boolean)
+    .flatMap((value) => {
+        try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed)
+                ? parsed
+                : typeof parsed === 'string'
+                    ? [parsed]
+                    : value.split(',');
+        } catch {
+            return value.split(',');
+        }
+    });
+
+const allowedOrigins = [...new Set([
+    ...defaultAllowedOrigins,
+    ...configuredOrigins,
+].filter((origin) => typeof origin === 'string')
     .map((origin) => origin.trim())
-    .filter(Boolean);
+    .filter(Boolean))];
 
 // Libera a aplicação local e URLs públicas configuradas para o frontend.
 app.use(cors({
