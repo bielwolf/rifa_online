@@ -43,24 +43,33 @@ class BilhetesController {
 
   // POST /bilhetes/reservar
   static async reservarBilhete(req, res) {
-    try {
-      // 1. O Zod valida e higieniza os dados recebidos do req.body
-      const dadosValidados = reserveBilheteSchema.parse(req.body);
+    // Body esperado:
+    // {
+    //   rifa_id: string | number,
+    //   numero: integer positivo,
+    //   comprador_nome: string,
+    //   comprador_telefone: string com DDD,
+    //   comprador_email?: string
+    // }
+    const validation = reserveBilheteSchema.safeParse(req.body);
+    if (!validation.success) {
+      const fields = formatValidationError(validation.error);
+      return res.status(400).json({
+        error: fields[0]?.message
+          ? `Dados de reserva inválidos: ${fields[0].message}`
+          : 'Dados de reserva inválidos.',
+        detalhes: fields,
+        fields,
+      });
+    }
 
+    try {
       // 2. Passamos os dados limpos e garantidos para o Service
-      const resultado = await BilhetesService.reservarBilhete(dadosValidados);
+      const resultado = await BilhetesService.reservarBilhete(validation.data);
 
       return res.status(201).json(resultado);
     } catch (error) {
-      // 3. Captura erros de validação do Zod (retorna Status 400 Bad Request)
-      if (error.name === 'ZodError' || error.issues) {
-        return res.status(400).json({
-          error: 'Dados de entrada inválidos.',
-          detalhes: formatValidationError(error),
-        });
-      }
-
-      // 4. Captura erro de concorrência retornado pelo Service (Status 409 Conflict)
+      // Captura erro de concorrência retornado pelo Service (Status 409 Conflict)
       if (error.message === 'Bilhete_Indisponivel') {
         return res.status(409).json({
           error: 'Este bilhete já foi reservado por outro usuário.',
