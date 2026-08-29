@@ -100,6 +100,53 @@ class BilhetesService {
       expira_em: expiraEm,
     };
   }
+
+  // 3. Método para liberar bilhetes expirados (reservados -> livre)
+  static async liberarExpirados() {
+    const agora = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("bilhetes")
+      .update({
+        status: "livre",
+        comprador_nome: null,
+        comprador_telefone: null,
+        comprador_email: null,
+        pix_id: null,
+        expira_em: null,
+      })
+      .lt("expira_em", agora)
+      .eq("status", "reservado")
+      .select("id, rifa_id, numero");
+
+    if (error) {
+      throw error;
+    }
+
+    return data; // retorna lista de bilhetes liberados
+  }
+
+  // 4. Método para confirmar pagamento via pix_id (reservado -> pago)
+  static async confirmarPagamento(pix_id) {
+    if (!pix_id) throw new Error("pix_id_obrigatorio");
+
+    const { data, error } = await supabase
+      .from("bilhetes")
+      .update({ status: "pago" })
+      .eq("pix_id", pix_id)
+      .eq("status", "reservado")
+      .select("id, rifa_id, numero");
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error("Bilhete_nao_encontrado");
+    }
+
+    return data[0];
+  }
 }
 
 module.exports = BilhetesService;

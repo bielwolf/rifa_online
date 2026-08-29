@@ -51,6 +51,10 @@ const createPaymentSchema = z.object({
   numberTicket: ticketNumberSchema,
 });
 
+const confirmPaymentSchema = z.object({
+  pix_id: idSchema,
+});
+
 function formatValidationError(error) {
   return error.issues.map((issue) => ({
     field: issue.path.join('.') || 'body',
@@ -61,5 +65,6 @@ function formatValidationError(error) {
 module.exports = {
   reserveBilheteSchema,
   createPaymentSchema,
+  confirmPaymentSchema,
   formatValidationError,
 };
