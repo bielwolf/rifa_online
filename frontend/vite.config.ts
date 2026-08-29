@@ -1,14 +1,14 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { TanStackStartVite } from "@tanstack/start-plugin";
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { tanstackStartVite } from '@tanstack/start-plugin'
 
 export default defineConfig({
   plugins: [
-    TanStackStartVite({
+    tanstackStartVite({
       nitro: {
-        preset: "node-server", // <-- GARANTA QUE ESTÁ COMO 'node-server'
-      },
+        preset: 'node-server'
+      }
     }),
     react(),
   ],
-});
+})
